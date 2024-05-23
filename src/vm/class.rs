@@ -1,7 +1,7 @@
 use cesu8_str::java::JavaStr;
 
-use crate::instruction::Bytecode;
-use crate::{ConstantIdx, ConstantPool};
+use super::Bytecode;
+use super::{ConstantIdx, ConstantPool};
 
 #[derive(Debug)]
 pub struct Class {
