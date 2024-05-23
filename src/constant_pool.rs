@@ -42,10 +42,38 @@ impl ConstantPool {
     }
 }
 
+impl std::fmt::Debug for ConstantPool {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ConstantPool ")?;
+        let mut debug_list = f.debug_list();
+        for (index, slot) in self.entries.iter().enumerate() {
+            match slot {
+                Slot::Entry(entry) => {
+                    debug_list.entry_with(|f| {
+                        if f.alternate() {
+                            write!(f, "{index}: {entry:?}")
+                        } else {
+                            write!(f, "{entry:?}")
+                        }
+                    });
+                }
+                Slot::Marker => (),
+            }
+        }
+        debug_list.finish()
+    }
+}
+
 /// An index into the constant pool.
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ConstantIdx(NonZeroU16);
+
+impl std::fmt::Debug for ConstantIdx {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ConstantIdx({})", self.0)
+    }
+}
 
 enum Slot {
     Entry(Entry),

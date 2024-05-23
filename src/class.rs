@@ -2,6 +2,7 @@ use cesu8_str::java::JavaStr;
 
 use crate::{ConstantIdx, ConstantPool};
 
+#[derive(Debug)]
 pub struct Class {
     constants: ConstantPool,
     this_class: ConstantIdx,
