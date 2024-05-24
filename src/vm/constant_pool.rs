@@ -18,6 +18,13 @@ impl ConstantPool {
         }
     }
 
+    /// Returns the current number of entries inside the constant pool. This
+    /// number does include the empty slots created by [`Entry::Long`] and
+    /// [`Entry::Double`].
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
     /// Adds an entry to the constant pool. This method should only be used
     /// during construction of the constant pool.
     pub fn add(&mut self, entry: Entry) {
@@ -67,7 +74,7 @@ impl std::fmt::Debug for ConstantPool {
 /// An index into the constant pool.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq)]
-pub struct ConstantIdx(NonZeroU16);
+pub struct ConstantIdx(pub(super) NonZeroU16);
 
 impl std::fmt::Debug for ConstantIdx {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

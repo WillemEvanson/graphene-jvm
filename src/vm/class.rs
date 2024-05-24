@@ -5,11 +5,11 @@ use super::{ConstantIdx, ConstantPool};
 
 #[derive(Debug)]
 pub struct Class {
-    constants: ConstantPool,
-    this_class: ConstantIdx,
-    super_class: Option<ConstantIdx>,
-    fields: Vec<Field>,
-    methods: Vec<Method>,
+    pub(super) constants: ConstantPool,
+    pub(super) this_class: ConstantIdx,
+    pub(super) super_class: Option<ConstantIdx>,
+    pub(super) fields: Vec<Field>,
+    pub(super) methods: Vec<Method>,
 }
 
 impl Class {
@@ -48,8 +48,8 @@ impl Class {
 
 #[derive(Debug)]
 pub struct Field {
-    name: ConstantIdx,
-    descriptor: ConstantIdx,
+    pub(super) name: ConstantIdx,
+    pub(super) descriptor: ConstantIdx,
 }
 
 impl Field {
@@ -63,10 +63,9 @@ impl Field {
 }
 
 pub struct Method {
-    name: ConstantIdx,
-    descriptor: ConstantIdx,
-
-    bytecode: Option<Vec<u8>>,
+    pub(super) name: ConstantIdx,
+    pub(super) descriptor: ConstantIdx,
+    pub(super) code: Option<Code>,
 }
 
 impl Method {
@@ -78,8 +77,8 @@ impl Method {
         constant_pool.get(self.descriptor).into_utf8()
     }
 
-    pub fn bytecode(&self) -> Option<Bytecode> {
-        self.bytecode.as_deref().map(Bytecode::new)
+    pub fn bytecode(&self) -> Option<&Code> {
+        self.code.as_ref()
     }
 }
 
@@ -88,13 +87,43 @@ impl std::fmt::Debug for Method {
         f.debug_struct("Method")
             .field("name", &self.name)
             .field("descriptor", &self.descriptor)
-            .field_with("bytecode", |f| {
-                if let Some(bytecode) = self.bytecode() {
-                    bytecode.fmt(f)
+            .field_with("code", |f| {
+                if let Some(code) = &self.code {
+                    code.fmt(f)
                 } else {
                     f.write_str("None")
                 }
             })
+            .finish()
+    }
+}
+
+pub struct Code {
+    pub max_stack: u16,
+    pub max_locals: u16,
+    pub bytecode: Vec<u8>,
+}
+
+impl Code {
+    pub fn max_stack(&self) -> u16 {
+        self.max_stack
+    }
+
+    pub fn max_locals(&self) -> u16 {
+        self.max_locals
+    }
+
+    pub fn bytecode(&self) -> Bytecode {
+        Bytecode::new(self.bytecode.as_slice())
+    }
+}
+
+impl std::fmt::Debug for Code {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Code")
+            .field("max_stack", &self.max_stack)
+            .field("max_locals", &self.max_locals)
+            .field("bytecode", &self.bytecode())
             .finish()
     }
 }
