@@ -3,7 +3,6 @@ use cesu8_str::java::JavaStr;
 use super::Bytecode;
 use super::{ConstantIdx, ConstantPool};
 
-#[derive(Debug)]
 pub struct Class {
     pub(super) constants: ConstantPool,
     pub(super) this_class: ConstantIdx,
@@ -43,6 +42,63 @@ impl Class {
             .iter()
             .find(|method| method.name(&self.constants) == name)
             .unwrap()
+    }
+}
+
+impl std::fmt::Debug for Class {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Class")
+            .field("constants", &self.constants)
+            .field("this_class", {
+                let class = self.constants.get(self.this_class).into_class();
+                &self.constants.get(class).into_utf8()
+            })
+            .field_with("super_class", |f| {
+                if let Some(super_class) = self.super_class {
+                    let class = self.constants.get(super_class).into_class();
+                    self.constants.get(class).into_utf8().fmt(f)
+                } else {
+                    f.write_str("None")
+                }
+            })
+            .field_with("fields", |f| {
+                let mut debug_list = f.debug_list();
+                for field in self.fields.iter() {
+                    debug_list.entry_with(|f| {
+                        f.debug_struct("Field")
+                            .field("name", &self.constants.get(field.name).into_utf8())
+                            .field(
+                                "descriptor",
+                                &self.constants.get(field.descriptor).into_utf8(),
+                            )
+                            .finish()
+                    });
+                }
+                debug_list.finish()
+            })
+            .field_with("methods", |f| {
+                let mut debug_list = f.debug_list();
+                for method in self.methods.iter() {
+                    debug_list.entry_with(|f| {
+                        f.debug_struct("Method")
+                            .field("name", &self.constants.get(method.name).into_utf8())
+                            .field(
+                                "descriptor",
+                                &self.constants.get(method.descriptor).into_utf8(),
+                            )
+                            .field_with("code", |f| {
+                                if let Some(code) = &method.code {
+                                    code.fmt(f)
+                                } else {
+                                    f.write_str("None")
+                                }
+                            })
+                            .finish()
+                    });
+                }
+                debug_list.finish()
+            })
+            .finish()
     }
 }
 
