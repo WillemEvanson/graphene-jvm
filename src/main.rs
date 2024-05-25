@@ -1,4 +1,4 @@
-use graphene_jvm::vm::parse_class;
+use graphene_jvm::vm::class::parse_class;
 
 fn main() {
     let Some(file_path) = std::env::args().nth(1) else {
