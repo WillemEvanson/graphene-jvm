@@ -51,7 +51,7 @@ impl TryFrom<u8> for ReferenceKind {
     }
 }
 
-pub fn parse_class(slice: &[u8]) -> Result<Class> {
+pub fn parse(slice: &[u8]) -> Result<Class> {
     let mut reader = Reader::new(slice);
 
     // Magic Number
@@ -64,6 +64,53 @@ pub fn parse_class(slice: &[u8]) -> Result<Class> {
     let _major = reader.read_u16()?;
 
     // Constant Pool
+    let constants = parse_constant_pool(&mut reader)?;
+
+    // Access Flags
+    let _access_flags = reader.read_u16()?;
+
+    // Class Name
+    let this_class = parse_constant_idx(&mut reader)?;
+
+    // Super Class Name
+    let super_class = NonZeroU16::new(reader.read_u16()?).map(ConstantIdx);
+
+    // Interfaces
+    let interface_count = reader.read_u16()? as usize;
+    let mut interfaces = Vec::with_capacity(interface_count);
+    for _ in 0..interface_count {
+        interfaces.push(reader.read_u16()?);
+    }
+
+    // Field
+    let field_count = reader.read_u16()? as usize;
+    let mut fields = Vec::with_capacity(field_count);
+    for _ in 0..field_count {
+        fields.push(parse_field(&mut reader)?);
+    }
+
+    // Method
+    let method_count = reader.read_u16()? as usize;
+    let mut methods = Vec::with_capacity(field_count);
+    for _ in 0..method_count {
+        methods.push(parse_method(&mut reader, &constants)?);
+    }
+
+    let attribute_count = reader.read_u16()?;
+    for _ in 0..attribute_count {
+        let _ = parse_attribute(&mut reader)?;
+    }
+
+    Ok(Class {
+        constants,
+        this_class,
+        super_class,
+        fields,
+        methods,
+    })
+}
+
+fn parse_constant_pool(reader: &mut Reader) -> Result<ConstantPool> {
     let entry_count = reader.read_u16()? as usize - 1;
     let mut constants = ConstantPool::new(entry_count);
     while constants.len() < entry_count {
@@ -95,45 +142,45 @@ pub fn parse_class(slice: &[u8]) -> Result<Class> {
                 Entry::Double(double)
             }
             7 => {
-                let name_idx = parse_constant_idx(&mut reader)?;
+                let name_idx = parse_constant_idx(reader)?;
                 Entry::Class(name_idx)
             }
             8 => {
-                let string_idx = parse_constant_idx(&mut reader)?;
+                let string_idx = parse_constant_idx(reader)?;
                 Entry::String(string_idx)
             }
             9 => {
-                let class_idx = parse_constant_idx(&mut reader)?;
-                let name_type_idx = parse_constant_idx(&mut reader)?;
+                let class_idx = parse_constant_idx(reader)?;
+                let name_type_idx = parse_constant_idx(reader)?;
                 Entry::FieldRef(class_idx, name_type_idx)
             }
             10 => {
-                let class_idx = parse_constant_idx(&mut reader)?;
-                let name_type_idx = parse_constant_idx(&mut reader)?;
+                let class_idx = parse_constant_idx(reader)?;
+                let name_type_idx = parse_constant_idx(reader)?;
                 Entry::MethodRef(class_idx, name_type_idx)
             }
             11 => {
-                let class_idx = parse_constant_idx(&mut reader)?;
-                let name_type_idx = parse_constant_idx(&mut reader)?;
+                let class_idx = parse_constant_idx(reader)?;
+                let name_type_idx = parse_constant_idx(reader)?;
                 Entry::InterfaceMethodRef(class_idx, name_type_idx)
             }
             12 => {
-                let name_idx = parse_constant_idx(&mut reader)?;
-                let descriptor_idx = parse_constant_idx(&mut reader)?;
+                let name_idx = parse_constant_idx(reader)?;
+                let descriptor_idx = parse_constant_idx(reader)?;
                 Entry::NameType(name_idx, descriptor_idx)
             }
             15 => {
                 let ref_kind = ReferenceKind::try_from(reader.read_u8()?)?;
-                let ref_idx = parse_constant_idx(&mut reader)?;
+                let ref_idx = parse_constant_idx(reader)?;
                 Entry::MethodHandle(ref_kind, ref_idx)
             }
             16 => {
-                let descriptor_idx = parse_constant_idx(&mut reader)?;
+                let descriptor_idx = parse_constant_idx(reader)?;
                 Entry::MethodType(descriptor_idx)
             }
             18 => {
                 let bootstrap_method_attr_idx = reader.read_u16()?;
-                let name_type_idx = parse_constant_idx(&mut reader)?;
+                let name_type_idx = parse_constant_idx(reader)?;
                 Entry::InvokeDynamic(bootstrap_method_attr_idx, name_type_idx)
             }
             _ => return Err(ParseError::InvalidConstantTag),
@@ -141,99 +188,66 @@ pub fn parse_class(slice: &[u8]) -> Result<Class> {
         constants.add(entry);
     }
 
-    // Access Flags
+    Ok(constants)
+}
+
+fn parse_field(reader: &mut Reader) -> Result<Field> {
     let _access_flags = reader.read_u16()?;
-
-    // Class Name
-    let this_class = parse_constant_idx(&mut reader)?;
-
-    // Super Class Name
-    let super_class = NonZeroU16::new(reader.read_u16()?).map(ConstantIdx);
-
-    // Interfaces
-    let interface_count = reader.read_u16()? as usize;
-    let mut interfaces = Vec::with_capacity(interface_count);
-    for _ in 0..interface_count {
-        interfaces.push(reader.read_u16()?);
-    }
-
-    // Field
-    let field_count = reader.read_u16()? as usize;
-    let mut fields = Vec::with_capacity(field_count);
-    for _ in 0..field_count {
-        let _access_flags = reader.read_u16()?;
-        let name = parse_constant_idx(&mut reader)?;
-        let descriptor = parse_constant_idx(&mut reader)?;
-
-        let attribute_count = reader.read_u16()?;
-        for _ in 0..attribute_count {
-            let _ = parse_attribute(&mut reader)?;
-        }
-
-        fields.push(Field { name, descriptor });
-    }
-
-    // Method
-    let method_count = reader.read_u16()? as usize;
-    let mut methods = Vec::with_capacity(field_count);
-    for _ in 0..method_count {
-        let _access_flags = reader.read_u16()?;
-        let name = parse_constant_idx(&mut reader)?;
-        let descriptor = parse_constant_idx(&mut reader)?;
-
-        let mut code = None;
-        let attribute_count = reader.read_u16()?;
-        for _ in 0..attribute_count {
-            let (name, slice) = parse_attribute(&mut reader)?;
-
-            if constants.get(name).into_utf8() == &*cesu8_str::java::from_utf8("Code") {
-                let mut reader = Reader::new(slice);
-
-                let max_stack = reader.read_u16()?;
-                let max_locals = reader.read_u16()?;
-                let code_len = reader.read_u32()?;
-                let code_bytes = reader.read_slice(code_len as usize)?;
-
-                let exception_table_len = reader.read_u16()?;
-                for _ in 0..exception_table_len {
-                    let _start_pc = reader.read_u16()?;
-                    let _end_pc = reader.read_u16()?;
-                    let _handler_pc = reader.read_u16()?;
-                    let _catch_type = reader.read_u16()?;
-                }
-
-                let attribute_count = reader.read_u16()?;
-                for _ in 0..attribute_count {
-                    let _ = parse_attribute(&mut reader)?;
-                }
-
-                code = Some(Code {
-                    max_stack,
-                    max_locals,
-                    bytecode: code_bytes.to_owned(),
-                });
-            }
-        }
-
-        methods.push(Method {
-            name,
-            descriptor,
-
-            code,
-        });
-    }
+    let name = parse_constant_idx(reader)?;
+    let descriptor = parse_constant_idx(reader)?;
 
     let attribute_count = reader.read_u16()?;
     for _ in 0..attribute_count {
-        let _ = parse_attribute(&mut reader)?;
+        let _ = parse_attribute(reader)?;
     }
 
-    Ok(Class {
-        constants,
-        this_class,
-        super_class,
-        fields,
-        methods,
+    Ok(Field { name, descriptor })
+}
+
+fn parse_method(reader: &mut Reader, constants: &ConstantPool) -> Result<Method> {
+    let _access_flags = reader.read_u16()?;
+    let name = parse_constant_idx(reader)?;
+    let descriptor = parse_constant_idx(reader)?;
+
+    let mut code = None;
+    let attribute_count = reader.read_u16()?;
+    for _ in 0..attribute_count {
+        let (name, slice) = parse_attribute(reader)?;
+
+        if constants.get(name).into_utf8() == &*cesu8_str::java::from_utf8("Code") {
+            let mut reader = Reader::new(slice);
+
+            let max_stack = reader.read_u16()?;
+            let max_locals = reader.read_u16()?;
+            let code_len = reader.read_u32()?;
+            let code_bytes = reader.read_slice(code_len as usize)?;
+
+            let exception_table_len = reader.read_u16()?;
+            for _ in 0..exception_table_len {
+                let _start_pc = reader.read_u16()?;
+                let _end_pc = reader.read_u16()?;
+                let _handler_pc = reader.read_u16()?;
+                let _catch_type = reader.read_u16()?;
+            }
+
+            let attribute_count = reader.read_u16()?;
+            for _ in 0..attribute_count {
+                let _ = parse_attribute(&mut reader)?;
+            }
+
+            code = Some(Code {
+                max_stack,
+                max_locals,
+                bytecode: code_bytes.to_owned(),
+            });
+        }
+    }
+
+    Ok(Method {
+        name,
+        descriptor,
+
+        code,
     })
 }
 

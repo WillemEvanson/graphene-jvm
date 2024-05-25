@@ -1,4 +1,4 @@
-use graphene_jvm::vm::class::parse_class;
+use graphene_jvm::vm::class::parse;
 
 fn main() {
     let Some(file_path) = std::env::args().nth(1) else {
@@ -11,6 +11,6 @@ fn main() {
         return;
     };
 
-    let class = parse_class(&file_contents).unwrap();
+    let class = parse(&file_contents).unwrap();
     println!("{class:#?}");
 }
