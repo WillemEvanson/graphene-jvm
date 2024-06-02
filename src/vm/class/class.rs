@@ -1,4 +1,4 @@
-use cesu8_str::java::JavaStr;
+use crate::string::JavaStr;
 
 use super::Bytecode;
 use super::{ConstantIdx, ConstantPool};

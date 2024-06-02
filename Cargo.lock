@@ -3,14 +3,5 @@
 version = 3
 
 [[package]]
-name = "cesu8-str"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecf8d2180e72db11fa44002d40ad443eb1fddc3a1e67075cd4dc7ff7d995886e"
-
-[[package]]
 name = "graphene-jvm"
 version = "0.1.0"
-dependencies = [
- "cesu8-str",
-]

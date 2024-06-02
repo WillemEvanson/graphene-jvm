@@ -1,16 +1,25 @@
 use graphene_jvm::vm::class::parse;
 
 fn main() {
-    let Some(file_path) = std::env::args().nth(1) else {
-        eprintln!("usage: graphene_jvm [path]");
+    let Some(rt_jar_path) = std::env::args().nth(1) else {
+        eprintln!("usage: graphene_jvm [rt_jar_path]");
         return;
     };
 
-    let Ok(file_contents) = std::fs::read(&file_path) else {
-        eprintln!("File {file_path} does not exist");
-        return;
-    };
+    visit_dirs(std::path::Path::new(&rt_jar_path)).unwrap();
+}
 
-    let class = parse(&file_contents).unwrap();
-    println!("{class:#?}");
+pub fn visit_dirs(dir: &std::path::Path) -> std::io::Result<()> {
+    if dir.is_dir() {
+        for entry in std::fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            visit_dirs(&path)?
+        }
+    } else {
+        println!("{}", dir.display());
+        let file_contents = std::fs::read(&dir).unwrap();
+        let _class = parse(&file_contents).unwrap();
+    }
+    Ok(())
 }

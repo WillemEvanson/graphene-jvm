@@ -1,6 +1,6 @@
 use std::num::NonZeroU16;
 
-use cesu8_str::java::{JavaStr, JavaString};
+use crate::string::{JavaStr, JavaString};
 
 /// The runtime constant pool for the JVM. This represents the various strings,
 /// names, and other constants referred to within the class.

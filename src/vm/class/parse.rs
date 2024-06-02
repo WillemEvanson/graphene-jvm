@@ -1,9 +1,8 @@
 use std::num::NonZeroU16;
 
-use cesu8_str::java::JavaStr;
-use cesu8_str::EncodingError;
-
+use crate::java_str;
 use crate::reader::{Reader, ReaderError};
+use crate::string::{EncodingError, JavaStr};
 
 use super::{Class, Code, ConstantIdx, ConstantPool, Entry, Field, Method, ReferenceKind};
 
@@ -118,7 +117,7 @@ fn parse_constant_pool(reader: &mut Reader) -> Result<ConstantPool> {
             1 => {
                 let length = reader.read_u16()?;
                 let slice = reader.read_slice(length as usize)?;
-                let str = JavaStr::from_java_cesu8(slice)?.to_owned();
+                let str = JavaStr::from_java(slice)?.to_owned();
                 Entry::Utf8(str)
             }
             3 => {
@@ -214,7 +213,7 @@ fn parse_method(reader: &mut Reader, constants: &ConstantPool) -> Result<Method>
     for _ in 0..attribute_count {
         let (name, slice) = parse_attribute(reader)?;
 
-        if constants.get(name).into_utf8() == &*cesu8_str::java::from_utf8("Code") {
+        if constants.get(name).into_utf8() == java_str!("Code") {
             let mut reader = Reader::new(slice);
 
             let max_stack = reader.read_u16()?;
