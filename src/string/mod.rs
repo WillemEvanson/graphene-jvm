@@ -67,6 +67,63 @@ impl core::fmt::Display for EncodingError {
 
 impl std::error::Error for EncodingError {}
 
+/// Converts bytes in UTF-8 format into Modified UTF-8 format.
+///
+/// This will not copy unless the `str` has the nul character or a supplementary
+/// character inside it.
+#[must_use]
+pub fn from_utf8(str: &str) -> std::borrow::Cow<'_, JavaStr> {
+    let mut index = 0;
+    let mut last_index = 0;
+
+    let mut string = None;
+
+    let v = str.as_bytes();
+    while let Some(&byte) = v.get(index) {
+        if byte & 0b1111_1000 == 0b1111_0000 {
+            let string = string.get_or_insert(JavaString::with_capacity(str.len()));
+
+            unsafe {
+                let c = core::str::from_utf8_unchecked(&v[index..])
+                    .chars()
+                    .next()
+                    .unwrap_unchecked();
+
+                let vec = string.as_mut_vec();
+                vec.extend_from_slice(&v[last_index..index]);
+
+                // Add character in Modified UTF-8.
+                vec.extend_from_slice(encode_raw(c as u32, &mut [0; 6]));
+            }
+
+            index += 4;
+            last_index = index;
+        } else if byte == 0 {
+            let string = string.get_or_insert(JavaString::with_capacity(str.len()));
+
+            unsafe {
+                let vec = string.as_mut_vec();
+                vec.extend_from_slice(&v[last_index..index]);
+
+                // Add nul character in the Modified UTF-8.
+                vec.extend_from_slice(&[0xC0, 0x80]);
+            }
+
+            index += 1;
+            last_index = index;
+        } else {
+            index += 1;
+        }
+    }
+
+    if let Some(mut string) = string {
+        unsafe { string.as_mut_vec().extend_from_slice(&v[last_index..index]) };
+        std::borrow::Cow::Owned(string)
+    } else {
+        std::borrow::Cow::Borrowed(unsafe { JavaStr::from_java_unchecked(v) })
+    }
+}
+
 /// Checks whether a slice of bytes contains valid Modified UTF-8 data. This
 /// does include unpaired surrogates, thus meaning that each code point is not
 /// necessarily a Unicode scalar value (a `char`).
@@ -255,4 +312,51 @@ const fn get_surrogate_index(v: &[u8], index: usize) -> Option<u32> {
         }
     }
     None
+}
+
+/// Compute the length of a character when encoded in the CESU-8 format.
+#[must_use]
+const fn len(code: u32) -> usize {
+    if code < 80 && code != 0 {
+        1
+    } else if code < 0x800 {
+        2
+    } else if code < 0x10000 {
+        3
+    } else {
+        6
+    }
+}
+
+/// Encodes a raw u32 value as CESU-8 into the provided byte buffer, then
+/// returns the subslice of the buffer that contains the encoded character.
+#[inline]
+#[must_use]
+fn encode_raw(code: u32, dst: &mut [u8]) -> &mut [u8] {
+    let len = len(code);
+    match (len, &mut dst[..]) {
+        (1, [a, ..]) => *a = code as u8,
+        (2, [a, b, ..]) => {
+            *a = 0b1100_0000 | (code >> 6 & 0x1F) as u8;
+            *b = 0b1000_0000 | (code & 0x3F) as u8;
+        }
+        (3, [a, b, c, ..]) => {
+            *a = 0b1110_0000 | (code >> 12 & 0x0F) as u8;
+            *b = 0b1000_0000 | (code >> 6 & 0x3F) as u8;
+            *c = 0b1000_0000 | (code & 0x3F) as u8;
+        }
+        (6, [a, b, c, d, e, f, ..]) => {
+            *a = 0b1110_1101;
+            *b = 0b1010_0000 | ((code - 0x1_0000) >> 16 & 0x0F) as u8;
+            *c = 0b1000_0000 | (code >> 10 & 0x3F) as u8;
+            *d = 0b1110_1101;
+            *e = 0b1011_0000 | (code >> 6 & 0x0F) as u8;
+            *f = 0b1000_0000 | (code & 0x3F) as u8;
+        }
+        _ => panic!(
+            "encode_cesu8: need {len} bytes to encode U+{code:X}, but the buffer has {}",
+            dst.len()
+        ),
+    };
+    &mut dst[..len]
 }

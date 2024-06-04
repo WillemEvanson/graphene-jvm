@@ -69,6 +69,21 @@ impl JavaString {
     pub fn as_str(&self) -> &JavaStr {
         self
     }
+
+    /// Returns a mutable reference to the contents of this `JavaString`.
+    ///
+    /// # Safety
+    ///
+    /// This function is unsafe because the returned `&mut Vec` allows writing
+    /// bytes which are not valid Modified UTF-8. If this constraint is
+    /// violated, using the original `JavaString` after dropping the `&mut Vec`
+    /// may violate memory safety as `JavaString`s are expected to always
+    /// contain valid Modified UTF-8.
+    #[inline]
+    #[must_use]
+    pub(crate) unsafe fn as_mut_vec(&mut self) -> &mut Vec<u8> {
+        &mut self.vec
+    }
 }
 
 impl Default for JavaString {
