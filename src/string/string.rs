@@ -135,36 +135,42 @@ impl PartialEq<JavaString> for &JavaString {
 }
 
 impl PartialEq<JavaStr> for JavaString {
+    #[inline]
     fn eq(&self, other: &JavaStr) -> bool {
         PartialEq::eq(self.as_str(), other)
     }
 }
 
 impl PartialEq<JavaString> for JavaStr {
+    #[inline]
     fn eq(&self, other: &JavaString) -> bool {
         PartialEq::eq(self, other.as_str())
     }
 }
 
 impl PartialEq<&JavaStr> for JavaString {
+    #[inline]
     fn eq(&self, other: &&JavaStr) -> bool {
         PartialEq::eq(self.as_str(), *other)
     }
 }
 
 impl PartialEq<&JavaString> for JavaStr {
+    #[inline]
     fn eq(&self, other: &&JavaString) -> bool {
         PartialEq::eq(self, other.as_str())
     }
 }
 
 impl PartialEq<JavaStr> for &JavaString {
+    #[inline]
     fn eq(&self, other: &JavaStr) -> bool {
         PartialEq::eq(self.as_str(), other)
     }
 }
 
 impl PartialEq<JavaString> for &JavaStr {
+    #[inline]
     fn eq(&self, other: &JavaString) -> bool {
         PartialEq::eq(*self, other.as_str())
     }
