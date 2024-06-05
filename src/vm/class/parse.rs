@@ -4,7 +4,9 @@ use crate::java_str;
 use crate::reader::{Reader, ReaderError};
 use crate::string::{EncodingError, JavaStr};
 
-use super::{Class, Code, ConstantIdx, ConstantPool, Entry, Field, Method, ReferenceKind};
+use super::{
+    Class, Code, ConstantIdx, ConstantPool, Entry, Field, Method, MethodFlags, ReferenceKind,
+};
 
 type Result<T> = std::result::Result<T, ParseError>;
 
@@ -204,7 +206,7 @@ fn parse_field(reader: &mut Reader) -> Result<Field> {
 }
 
 fn parse_method(reader: &mut Reader, constants: &ConstantPool) -> Result<Method> {
-    let _access_flags = reader.read_u16()?;
+    let flags = MethodFlags::from_bits(reader.read_u16()?);
     let name = parse_constant_idx(reader)?;
     let descriptor = parse_constant_idx(reader)?;
 
@@ -245,6 +247,7 @@ fn parse_method(reader: &mut Reader, constants: &ConstantPool) -> Result<Method>
     Ok(Method {
         name,
         descriptor,
+        flags,
 
         code,
     })
