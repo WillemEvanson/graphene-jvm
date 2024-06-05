@@ -58,7 +58,7 @@ impl std::fmt::Debug for ConstantPool {
                 Slot::Entry(entry) => {
                     debug_list.entry_with(|f| {
                         if f.alternate() {
-                            write!(f, "{index}: {entry:?}")
+                            write!(f, "{}: {entry:?}", index + 1)
                         } else {
                             write!(f, "{entry:?}")
                         }
