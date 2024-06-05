@@ -120,6 +120,140 @@ impl DerefMut for JavaString {
     }
 }
 
+impl PartialEq<&JavaString> for JavaString {
+    #[inline]
+    fn eq(&self, other: &&JavaString) -> bool {
+        PartialEq::eq(self, *other)
+    }
+}
+
+impl PartialEq<JavaString> for &JavaString {
+    #[inline]
+    fn eq(&self, other: &JavaString) -> bool {
+        PartialEq::eq(*self, other)
+    }
+}
+
+impl PartialEq<JavaStr> for JavaString {
+    fn eq(&self, other: &JavaStr) -> bool {
+        PartialEq::eq(self.as_str(), other)
+    }
+}
+
+impl PartialEq<JavaString> for JavaStr {
+    fn eq(&self, other: &JavaString) -> bool {
+        PartialEq::eq(self, other.as_str())
+    }
+}
+
+impl PartialEq<&JavaStr> for JavaString {
+    fn eq(&self, other: &&JavaStr) -> bool {
+        PartialEq::eq(self.as_str(), *other)
+    }
+}
+
+impl PartialEq<&JavaString> for JavaStr {
+    fn eq(&self, other: &&JavaString) -> bool {
+        PartialEq::eq(self, other.as_str())
+    }
+}
+
+impl PartialEq<JavaStr> for &JavaString {
+    fn eq(&self, other: &JavaStr) -> bool {
+        PartialEq::eq(self.as_str(), other)
+    }
+}
+
+impl PartialEq<JavaString> for &JavaStr {
+    fn eq(&self, other: &JavaString) -> bool {
+        PartialEq::eq(*self, other.as_str())
+    }
+}
+
+impl PartialEq<str> for JavaString {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        PartialEq::eq(self.as_str(), other)
+    }
+}
+
+impl PartialEq<JavaString> for str {
+    #[inline]
+    fn eq(&self, other: &JavaString) -> bool {
+        PartialEq::eq(other.as_str(), self)
+    }
+}
+
+impl PartialEq<&str> for JavaString {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        PartialEq::eq(self.as_str(), *other)
+    }
+}
+
+impl PartialEq<&JavaString> for str {
+    #[inline]
+    fn eq(&self, other: &&JavaString) -> bool {
+        PartialEq::eq(other.as_str(), self)
+    }
+}
+
+impl PartialEq<str> for &JavaString {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        PartialEq::eq(self.as_str(), other)
+    }
+}
+
+impl PartialEq<JavaString> for &str {
+    #[inline]
+    fn eq(&self, other: &JavaString) -> bool {
+        PartialEq::eq(other.as_str(), *self)
+    }
+}
+
+impl PartialEq<String> for JavaString {
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        PartialEq::eq(self.as_str(), other.as_str())
+    }
+}
+
+impl PartialEq<JavaString> for String {
+    #[inline]
+    fn eq(&self, other: &JavaString) -> bool {
+        PartialEq::eq(other.as_str(), self.as_str())
+    }
+}
+
+impl PartialEq<&String> for JavaString {
+    #[inline]
+    fn eq(&self, other: &&String) -> bool {
+        PartialEq::eq(self.as_str(), other.as_str())
+    }
+}
+
+impl PartialEq<&JavaString> for String {
+    #[inline]
+    fn eq(&self, other: &&JavaString) -> bool {
+        PartialEq::eq(other.as_str(), self.as_str())
+    }
+}
+
+impl PartialEq<String> for &JavaString {
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        PartialEq::eq(self.as_str(), other.as_str())
+    }
+}
+
+impl PartialEq<JavaString> for &String {
+    #[inline]
+    fn eq(&self, other: &JavaString) -> bool {
+        PartialEq::eq(other.as_str(), self.as_str())
+    }
+}
+
 impl std::fmt::Debug for JavaString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Debug::fmt(self.as_str(), f)
