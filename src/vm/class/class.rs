@@ -66,11 +66,8 @@ impl std::fmt::Debug for Class {
                 for field in self.fields.iter() {
                     debug_list.entry_with(|f| {
                         f.debug_struct("Field")
-                            .field("name", &self.constants.get(field.name).into_utf8())
-                            .field(
-                                "descriptor",
-                                &self.constants.get(field.descriptor).into_utf8(),
-                            )
+                            .field("name", &field.name(&self.constants))
+                            .field("descriptor", &field.descriptor(&self.constants))
                             .finish()
                     });
                 }
@@ -81,11 +78,8 @@ impl std::fmt::Debug for Class {
                 for method in self.methods.iter() {
                     debug_list.entry_with(|f| {
                         f.debug_struct("Method")
-                            .field("name", &self.constants.get(method.name).into_utf8())
-                            .field(
-                                "descriptor",
-                                &self.constants.get(method.descriptor).into_utf8(),
-                            )
+                            .field("name", &method.name(&self.constants))
+                            .field("descriptor", &method.descriptor(&self.constants))
                             .field_with("flags", |f| std::fmt::Display::fmt(&method.flags, f))
                             .field_with("code", |f| {
                                 if let Some(code) = &method.code {
