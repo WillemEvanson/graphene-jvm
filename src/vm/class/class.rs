@@ -37,10 +37,13 @@ impl Class {
             .unwrap()
     }
 
-    pub fn get_method(&self, name: &JavaStr) -> &Method {
+    pub fn get_method(&self, name: &JavaStr, descriptor: &JavaStr) -> &Method {
         self.methods
             .iter()
-            .find(|method| method.name(&self.constants) == name)
+            .find(|method| {
+                method.name(&self.constants) == name
+                    && method.descriptor(&self.constants) == descriptor
+            })
             .unwrap()
     }
 }
