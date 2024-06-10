@@ -5,8 +5,8 @@ use crate::reader::{Reader, ReaderError};
 use crate::string::{EncodingError, JavaStr};
 
 use super::{
-    Class, Code, ConstantIdx, ConstantPool, Entry, Field, Instruction, LookupSwitch, Method,
-    MethodFlags, ReferenceKind, TableSwitch,
+    ArrayKind, Class, Code, ConstantIdx, ConstantPool, Entry, Field, Instruction, LookupSwitch,
+    Method, MethodFlags, ReferenceKind, TableSwitch,
 };
 
 type Result<T> = std::result::Result<T, ParseError>;
@@ -19,6 +19,7 @@ pub enum ParseError {
     InvalidMagicNumber,
     InvalidConstantTag,
     InvalidConstantIdx,
+    InvalidArrayType,
 }
 
 impl From<EncodingError> for ParseError {
@@ -285,16 +286,16 @@ pub(super) fn parse_instruction<'a>(
         0x0F => Instruction::dconst(1.0),
         0x10 => Instruction::bipush(reader.read_u8()? as i8),
         0x11 => Instruction::sipush(reader.read_u16()? as i16),
-        0x12 => Instruction::ldc(reader.read_u8()?),
-        0x13 => Instruction::ldc_w(reader.read_u16()?),
-        0x14 => Instruction::ldc2_w(reader.read_u16()?),
+        0x12 => Instruction::ldc(ConstantIdx::try_from(reader.read_u8()? as u16)?),
+        0x13 => Instruction::ldc(ConstantIdx::try_from(reader.read_u16()? as u16)?),
+        0x14 => Instruction::ldc(ConstantIdx::try_from(reader.read_u16()? as u16)?),
 
         // Loads
-        0x15 => Instruction::iload(reader.read_u8()?),
-        0x16 => Instruction::lload(reader.read_u8()?),
-        0x17 => Instruction::fload(reader.read_u8()?),
-        0x18 => Instruction::dload(reader.read_u8()?),
-        0x19 => Instruction::aload(reader.read_u8()?),
+        0x15 => Instruction::iload(reader.read_u8()? as u16),
+        0x16 => Instruction::lload(reader.read_u8()? as u16),
+        0x17 => Instruction::fload(reader.read_u8()? as u16),
+        0x18 => Instruction::dload(reader.read_u8()? as u16),
+        0x19 => Instruction::aload(reader.read_u8()? as u16),
         0x1A => Instruction::iload(0),
         0x1B => Instruction::iload(1),
         0x1C => Instruction::iload(2),
@@ -325,11 +326,11 @@ pub(super) fn parse_instruction<'a>(
         0x35 => Instruction::saload,
 
         // Store
-        0x36 => Instruction::istore(reader.read_u8()?),
-        0x37 => Instruction::lstore(reader.read_u8()?),
-        0x38 => Instruction::fstore(reader.read_u8()?),
-        0x39 => Instruction::dstore(reader.read_u8()?),
-        0x3A => Instruction::astore(reader.read_u8()?),
+        0x36 => Instruction::istore(reader.read_u8()? as u16),
+        0x37 => Instruction::lstore(reader.read_u8()? as u16),
+        0x38 => Instruction::fstore(reader.read_u8()? as u16),
+        0x39 => Instruction::dstore(reader.read_u8()? as u16),
+        0x3A => Instruction::astore(reader.read_u8()? as u16),
         0x3B => Instruction::istore(0),
         0x3C => Instruction::istore(1),
         0x3D => Instruction::istore(2),
@@ -407,7 +408,7 @@ pub(super) fn parse_instruction<'a>(
         0x81 => Instruction::lor,
         0x82 => Instruction::ixor,
         0x83 => Instruction::lxor,
-        0x84 => Instruction::iinc(reader.read_u8()?, reader.read_u8()? as i8),
+        0x84 => Instruction::iinc(reader.read_u8()? as u16, reader.read_u8()? as i16),
 
         // Conversions
         0x85 => Instruction::i2l,
@@ -449,9 +450,9 @@ pub(super) fn parse_instruction<'a>(
         0xA6 => Instruction::if_acmp_ne(reader.read_u16()? as i16),
 
         // Control
-        0xA7 => Instruction::goto(reader.read_u16()? as i16),
-        0xA8 => Instruction::jsr(reader.read_u16()? as i16),
-        0xA9 => Instruction::ret(reader.read_u8()?),
+        0xA7 => Instruction::goto(reader.read_u16()? as i32),
+        0xA8 => Instruction::jsr(reader.read_u16()? as i32),
+        0xA9 => Instruction::ret(reader.read_u8()? as u16),
         0xAA => {
             reader.skip(4 - (current_offset + 1) % 4)?;
 
@@ -481,33 +482,33 @@ pub(super) fn parse_instruction<'a>(
         0xB1 => Instruction::ret_void,
 
         // References
-        0xB2 => Instruction::getstatic(reader.read_u16()?),
-        0xB3 => Instruction::putstatic(reader.read_u16()?),
-        0xB4 => Instruction::getfield(reader.read_u16()?),
-        0xB5 => Instruction::putfield(reader.read_u16()?),
-        0xB6 => Instruction::invokevirtual(reader.read_u16()?),
-        0xB7 => Instruction::invokespecial(reader.read_u16()?),
-        0xB8 => Instruction::invokestatic(reader.read_u16()?),
+        0xB2 => Instruction::getstatic(ConstantIdx::try_from(reader.read_u16()?)?),
+        0xB3 => Instruction::putstatic(ConstantIdx::try_from(reader.read_u16()?)?),
+        0xB4 => Instruction::getfield(ConstantIdx::try_from(reader.read_u16()?)?),
+        0xB5 => Instruction::putfield(ConstantIdx::try_from(reader.read_u16()?)?),
+        0xB6 => Instruction::invokevirtual(ConstantIdx::try_from(reader.read_u16()?)?),
+        0xB7 => Instruction::invokespecial(ConstantIdx::try_from(reader.read_u16()?)?),
+        0xB8 => Instruction::invokestatic(ConstantIdx::try_from(reader.read_u16()?)?),
         0xB9 => {
-            let index = reader.read_u16()?;
+            let index = ConstantIdx::try_from(reader.read_u16()?)?;
             let count = reader.read_u8()?;
             assert_eq!(&[0x00], reader.read_slice(1)?);
 
             Instruction::invokeinterface(index, count)
         }
         0xBA => {
-            let index = reader.read_u16()?;
+            let index = ConstantIdx::try_from(reader.read_u16()?)?;
             assert_eq!(&[0x00, 0x00], reader.read_slice(2)?);
 
             Instruction::invokedynamic(index)
         }
-        0xBB => Instruction::new(reader.read_u16()?),
-        0xBC => Instruction::newarray(reader.read_u8()?),
-        0xBD => Instruction::anewarray(reader.read_u16()?),
+        0xBB => Instruction::new(ConstantIdx::try_from(reader.read_u16()?)?),
+        0xBC => Instruction::newarray(ArrayKind::try_from(reader.read_u8()?)?),
+        0xBD => Instruction::anewarray(ConstantIdx::try_from(reader.read_u16()?)?),
         0xBE => Instruction::arraylength,
         0xBF => Instruction::athrow,
-        0xC0 => Instruction::checkcast(reader.read_u16()?),
-        0xC1 => Instruction::instanceof(reader.read_u16()?),
+        0xC0 => Instruction::checkcast(ConstantIdx::try_from(reader.read_u16()?)?),
+        0xC1 => Instruction::instanceof(ConstantIdx::try_from(reader.read_u16()?)?),
         0xC2 => Instruction::monitorenter,
         0xC3 => Instruction::monitorexit,
 
@@ -517,29 +518,32 @@ pub(super) fn parse_instruction<'a>(
             let index = reader.read_u16()?;
             match opcode {
                 // Loads
-                0x15 => Instruction::wide_iload(index),
-                0x16 => Instruction::wide_lload(index),
-                0x17 => Instruction::wide_fload(index),
-                0x18 => Instruction::wide_dload(index),
-                0x19 => Instruction::wide_aload(index),
+                0x15 => Instruction::iload(index),
+                0x16 => Instruction::lload(index),
+                0x17 => Instruction::fload(index),
+                0x18 => Instruction::dload(index),
+                0x19 => Instruction::aload(index),
                 // Stores
-                0x36 => Instruction::wide_istore(index),
-                0x37 => Instruction::wide_lstore(index),
-                0x38 => Instruction::wide_fstore(index),
-                0x39 => Instruction::wide_dstore(index),
-                0x3A => Instruction::wide_astore(index),
+                0x36 => Instruction::istore(index),
+                0x37 => Instruction::lstore(index),
+                0x38 => Instruction::fstore(index),
+                0x39 => Instruction::dstore(index),
+                0x3A => Instruction::astore(index),
 
                 // Other
-                0xA9 => Instruction::wide_ret(index),
-                0x84 => Instruction::wide_iinc(index, reader.read_u16()? as i16),
+                0xA9 => Instruction::ret(index),
+                0x84 => Instruction::iinc(index, reader.read_u16()? as i16),
                 opcode => panic!("invalid opcode: {opcode:04X}"),
             }
         }
-        0xC5 => Instruction::multianewarray(reader.read_u16()?, reader.read_u8()?),
+        0xC5 => Instruction::multianewarray(
+            ConstantIdx::try_from(reader.read_u16()?)?,
+            reader.read_u8()?,
+        ),
         0xC6 => Instruction::ifnull(reader.read_u16()? as i16),
         0xC7 => Instruction::ifnonnull(reader.read_u16()? as i16),
-        0xC8 => Instruction::goto_w(reader.read_u32()? as i32),
-        0xC9 => Instruction::jsr_w(reader.read_u32()? as i32),
+        0xC8 => Instruction::goto(reader.read_u32()? as i32),
+        0xC9 => Instruction::jsr(reader.read_u32()? as i32),
 
         opcode => panic!("invalid opcode: {opcode:04X}"),
     };
@@ -553,5 +557,24 @@ impl ConstantIdx {
         } else {
             Err(ParseError::InvalidConstantIdx)
         }
+    }
+}
+
+impl TryFrom<u8> for ArrayKind {
+    type Error = ParseError;
+
+    fn try_from(value: u8) -> Result<Self> {
+        let kind = match value {
+            4 => Self::Bool,
+            5 => Self::Char,
+            6 => Self::Float,
+            7 => Self::Double,
+            8 => Self::Byte,
+            9 => Self::Short,
+            10 => Self::Int,
+            11 => Self::Long,
+            _ => return Err(ParseError::InvalidArrayType),
+        };
+        Ok(kind)
     }
 }
