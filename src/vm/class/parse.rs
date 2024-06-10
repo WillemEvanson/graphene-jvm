@@ -72,7 +72,7 @@ pub fn parse(slice: &[u8]) -> Result<Class> {
     let _access_flags = reader.read_u16()?;
 
     // Class Name
-    let this_class = parse_constant_idx(&mut reader)?;
+    let this_class = ConstantIdx::try_from(reader.read_u16()?)?;
 
     // Super Class Name
     let super_class = NonZeroU16::new(reader.read_u16()?).map(ConstantIdx);
@@ -144,45 +144,45 @@ fn parse_constant_pool(reader: &mut Reader) -> Result<ConstantPool> {
                 Entry::Double(double)
             }
             7 => {
-                let name_idx = parse_constant_idx(reader)?;
+                let name_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::Class(name_idx)
             }
             8 => {
-                let string_idx = parse_constant_idx(reader)?;
+                let string_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::String(string_idx)
             }
             9 => {
-                let class_idx = parse_constant_idx(reader)?;
-                let name_type_idx = parse_constant_idx(reader)?;
+                let class_idx = ConstantIdx::try_from(reader.read_u16()?)?;
+                let name_type_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::FieldRef(class_idx, name_type_idx)
             }
             10 => {
-                let class_idx = parse_constant_idx(reader)?;
-                let name_type_idx = parse_constant_idx(reader)?;
+                let class_idx = ConstantIdx::try_from(reader.read_u16()?)?;
+                let name_type_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::MethodRef(class_idx, name_type_idx)
             }
             11 => {
-                let class_idx = parse_constant_idx(reader)?;
-                let name_type_idx = parse_constant_idx(reader)?;
+                let class_idx = ConstantIdx::try_from(reader.read_u16()?)?;
+                let name_type_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::InterfaceMethodRef(class_idx, name_type_idx)
             }
             12 => {
-                let name_idx = parse_constant_idx(reader)?;
-                let descriptor_idx = parse_constant_idx(reader)?;
+                let name_idx = ConstantIdx::try_from(reader.read_u16()?)?;
+                let descriptor_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::NameType(name_idx, descriptor_idx)
             }
             15 => {
                 let ref_kind = ReferenceKind::try_from(reader.read_u8()?)?;
-                let ref_idx = parse_constant_idx(reader)?;
+                let ref_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::MethodHandle(ref_kind, ref_idx)
             }
             16 => {
-                let descriptor_idx = parse_constant_idx(reader)?;
+                let descriptor_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::MethodType(descriptor_idx)
             }
             18 => {
                 let bootstrap_method_attr_idx = reader.read_u16()?;
-                let name_type_idx = parse_constant_idx(reader)?;
+                let name_type_idx = ConstantIdx::try_from(reader.read_u16()?)?;
                 Entry::InvokeDynamic(bootstrap_method_attr_idx, name_type_idx)
             }
             _ => return Err(ParseError::InvalidConstantTag),
@@ -195,8 +195,8 @@ fn parse_constant_pool(reader: &mut Reader) -> Result<ConstantPool> {
 
 fn parse_field(reader: &mut Reader) -> Result<Field> {
     let _access_flags = reader.read_u16()?;
-    let name = parse_constant_idx(reader)?;
-    let descriptor = parse_constant_idx(reader)?;
+    let name = ConstantIdx::try_from(reader.read_u16()?)?;
+    let descriptor = ConstantIdx::try_from(reader.read_u16()?)?;
 
     let attribute_count = reader.read_u16()?;
     for _ in 0..attribute_count {
@@ -208,8 +208,8 @@ fn parse_field(reader: &mut Reader) -> Result<Field> {
 
 fn parse_method(reader: &mut Reader, constants: &ConstantPool) -> Result<Method> {
     let flags = MethodFlags::from_bits(reader.read_u16()?);
-    let name = parse_constant_idx(reader)?;
-    let descriptor = parse_constant_idx(reader)?;
+    let name = ConstantIdx::try_from(reader.read_u16()?)?;
+    let descriptor = ConstantIdx::try_from(reader.read_u16()?)?;
 
     let mut code = None;
     let attribute_count = reader.read_u16()?;
@@ -255,7 +255,7 @@ fn parse_method(reader: &mut Reader, constants: &ConstantPool) -> Result<Method>
 }
 
 fn parse_attribute<'a>(reader: &mut Reader<'a>) -> Result<(ConstantIdx, &'a [u8])> {
-    let name = parse_constant_idx(reader)?;
+    let name = ConstantIdx::try_from(reader.read_u16()?)?;
     let length = reader.read_u32()?;
     let slice = reader.read_slice(length as usize)?;
     Ok((name, slice))
@@ -546,10 +546,12 @@ pub(super) fn parse_instruction<'a>(
     Ok(instruction)
 }
 
-fn parse_constant_idx(reader: &mut Reader) -> Result<ConstantIdx> {
-    if let Some(idx) = NonZeroU16::new(reader.read_u16()?) {
-        Ok(ConstantIdx(idx))
-    } else {
-        Err(ParseError::InvalidConstantIdx)
+impl ConstantIdx {
+    pub(super) fn try_from(value: u16) -> Result<Self> {
+        if let Some(idx) = NonZeroU16::new(value) {
+            Ok(ConstantIdx(idx))
+        } else {
+            Err(ParseError::InvalidConstantIdx)
+        }
     }
 }
