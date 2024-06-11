@@ -6,7 +6,7 @@ use super::JavaStr;
 /// This string does support unpaired surrogates, which are invalid Unicode code
 /// points.
 #[repr(transparent)]
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct JavaString {
     vec: Vec<u8>,
 }
@@ -59,6 +59,7 @@ impl JavaString {
     ///
     /// The vector of bytes passed in must be valid Modified UTF-8.
     #[inline]
+    #[must_use]
     pub const unsafe fn from_java_unchecked(vec: Vec<u8>) -> JavaString {
         JavaString { vec }
     }

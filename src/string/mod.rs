@@ -4,6 +4,7 @@ mod string;
 
 pub mod macros;
 
+pub use iter::JavaChars;
 pub use str::JavaStr;
 pub use string::JavaString;
 
@@ -251,6 +252,7 @@ unsafe fn next_code_point(bytes: &[u8]) -> Option<(&[u8], u32)> {
 ///
 /// The byte slice passed in must be valid Modified UTF-8.
 #[inline]
+#[must_use]
 unsafe fn next_code_point_reverse(bytes: &[u8]) -> Option<(&[u8], u32)> {
     if bytes.is_empty() {
         return None;
@@ -287,6 +289,7 @@ unsafe fn next_code_point_reverse(bytes: &[u8]) -> Option<(&[u8], u32)> {
 }
 
 #[inline]
+#[must_use]
 #[allow(clippy::identity_op)]
 const fn get_surrogate_index(v: &[u8], index: usize) -> Option<u32> {
     if let Some(x) = index.checked_add(5) {
@@ -315,6 +318,7 @@ const fn get_surrogate_index(v: &[u8], index: usize) -> Option<u32> {
 }
 
 /// Compute the length of a character when encoded in the CESU-8 format.
+#[inline]
 #[must_use]
 const fn len(code: u32) -> usize {
     if code < 80 && code != 0 {

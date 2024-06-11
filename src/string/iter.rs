@@ -17,8 +17,8 @@ impl<'a> JavaChars<'a> {
     /// in a valid format and will always start on a character boundary.
     #[inline]
     #[must_use]
-    pub fn as_bytes(&self) -> &JavaStr {
-        // SAFETY: The bytes come from a Cesu8Str, so they must be in a valid format.
+    pub fn as_str(&self) -> &'a JavaStr {
+        // SAFETY: The bytes come from a JavaStr, so they must be in a valid format.
         unsafe { JavaStr::from_java_unchecked(self.slice) }
     }
 }
