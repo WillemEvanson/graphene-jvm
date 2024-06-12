@@ -1,6 +1,6 @@
 use crate::string::JavaStr;
 
-use super::Bytecode;
+use super::{Bytecode, FieldType, MethodDescriptor};
 use super::{ConstantIdx, ConstantPool};
 
 pub struct Class {
@@ -100,10 +100,10 @@ impl std::fmt::Debug for Class {
     }
 }
 
-#[derive(Debug)]
 pub struct Field {
     pub(super) name: ConstantIdx,
     pub(super) descriptor: ConstantIdx,
+    pub(super) parsed_descriptor: FieldType,
 }
 
 impl Field {
@@ -114,11 +114,25 @@ impl Field {
     pub fn descriptor<'a>(&self, constant_pool: &'a ConstantPool) -> &'a JavaStr {
         constant_pool.get(self.descriptor).into_utf8()
     }
+
+    pub fn parsed_descriptor(&self) -> &FieldType {
+        &self.parsed_descriptor
+    }
+}
+
+impl std::fmt::Debug for Field {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Field")
+            .field("name", &self.name)
+            .field("descriptor", &self.parsed_descriptor)
+            .finish()
+    }
 }
 
 pub struct Method {
     pub(super) name: ConstantIdx,
     pub(super) descriptor: ConstantIdx,
+    pub(super) parsed_descriptor: MethodDescriptor,
     pub(super) flags: MethodFlags,
     pub(super) code: Option<Code>,
 }
@@ -130,6 +144,10 @@ impl Method {
 
     pub fn descriptor<'a>(&self, constant_pool: &'a ConstantPool) -> &'a JavaStr {
         constant_pool.get(self.descriptor).into_utf8()
+    }
+
+    pub fn parsed_descriptor(&self) -> &MethodDescriptor {
+        &self.parsed_descriptor
     }
 
     pub fn flags(&self) -> MethodFlags {
@@ -145,7 +163,7 @@ impl std::fmt::Debug for Method {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Method")
             .field("name", &self.name)
-            .field("descriptor", &self.descriptor)
+            .field("descriptor", &self.parsed_descriptor)
             .field("flags", &self.flags)
             .field_with("code", |f| {
                 if let Some(code) = &self.code {

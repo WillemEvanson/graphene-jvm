@@ -2,11 +2,11 @@ use std::num::NonZeroU16;
 
 use crate::java_str;
 use crate::reader::{Reader, ReaderError};
-use crate::string::{EncodingError, JavaStr};
+use crate::string::{EncodingError, JavaChars, JavaStr};
 
 use super::{
-    ArrayKind, Class, Code, ConstantIdx, ConstantPool, Entry, Field, Instruction, LookupSwitch,
-    Method, MethodFlags, ReferenceKind, TableSwitch,
+    ArrayKind, Class, Code, ConstantIdx, ConstantPool, Entry, Field, FieldType, Instruction,
+    LookupSwitch, Method, MethodDescriptor, MethodFlags, ReferenceKind, TableSwitch,
 };
 
 type Result<T> = std::result::Result<T, ParseError>;
@@ -20,6 +20,7 @@ pub enum ParseError {
     InvalidConstantTag,
     InvalidConstantIdx,
     InvalidArrayType,
+    InvalidDescriptor,
 }
 
 impl From<EncodingError> for ParseError {
@@ -89,7 +90,7 @@ pub fn parse(slice: &[u8]) -> Result<Class> {
     let field_count = reader.read_u16()? as usize;
     let mut fields = Vec::with_capacity(field_count);
     for _ in 0..field_count {
-        fields.push(parse_field(&mut reader)?);
+        fields.push(parse_field(&mut reader, &constants)?);
     }
 
     // Method
@@ -194,23 +195,31 @@ fn parse_constant_pool(reader: &mut Reader) -> Result<ConstantPool> {
     Ok(constants)
 }
 
-fn parse_field(reader: &mut Reader) -> Result<Field> {
+fn parse_field(reader: &mut Reader, constants: &ConstantPool) -> Result<Field> {
     let _access_flags = reader.read_u16()?;
     let name = ConstantIdx::try_from(reader.read_u16()?)?;
     let descriptor = ConstantIdx::try_from(reader.read_u16()?)?;
+    let descriptor_str = constants.get(descriptor).into_utf8();
+    let parsed_descriptor = parse_field_descriptor(&mut descriptor_str.chars())?;
 
     let attribute_count = reader.read_u16()?;
     for _ in 0..attribute_count {
         let _ = parse_attribute(reader)?;
     }
 
-    Ok(Field { name, descriptor })
+    Ok(Field {
+        name,
+        descriptor,
+        parsed_descriptor,
+    })
 }
 
 fn parse_method(reader: &mut Reader, constants: &ConstantPool) -> Result<Method> {
     let flags = MethodFlags::from_bits(reader.read_u16()?);
     let name = ConstantIdx::try_from(reader.read_u16()?)?;
     let descriptor = ConstantIdx::try_from(reader.read_u16()?)?;
+    let descriptor_str = constants.get(descriptor).into_utf8();
+    let parsed_descriptor = parse_method_descriptor(&mut descriptor_str.chars())?;
 
     let mut code = None;
     let attribute_count = reader.read_u16()?;
@@ -249,10 +258,63 @@ fn parse_method(reader: &mut Reader, constants: &ConstantPool) -> Result<Method>
     Ok(Method {
         name,
         descriptor,
+        parsed_descriptor,
         flags,
 
         code,
     })
+}
+
+fn parse_method_descriptor(chars: &mut JavaChars) -> Result<MethodDescriptor> {
+    let Some('(') = chars.next().and_then(char::from_u32) else {
+        return Err(ParseError::InvalidDescriptor);
+    };
+
+    let mut parameters = Vec::new();
+    loop {
+        if let Some(')') = chars.clone().next().and_then(char::from_u32) {
+            chars.next();
+            break;
+        }
+        parameters.push(parse_field_descriptor(chars)?);
+    }
+
+    let ret = if let Some('V') = chars.clone().next().and_then(char::from_u32) {
+        None
+    } else {
+        Some(parse_field_descriptor(chars)?)
+    };
+
+    Ok(MethodDescriptor {
+        parameters,
+        ret,
+    })
+}
+
+fn parse_field_descriptor(chars: &mut JavaChars) -> Result<FieldType> {
+    let field_type = match chars.next().and_then(char::from_u32) {
+        Some('B') => FieldType::Byte,
+        Some('C') => FieldType::Char,
+        Some('D') => FieldType::Double,
+        Some('F') => FieldType::Float,
+        Some('I') => FieldType::Int,
+        Some('J') => FieldType::Long,
+        Some('L') => {
+            let remaining = chars.as_str();
+            while let Some(c) = chars.next().and_then(char::from_u32) {
+                if c == ';' {
+                    break;
+                }
+            }
+            let name = &remaining[..remaining.len() - chars.as_str().len() - 1];
+            FieldType::Class(name.to_owned())
+        }
+        Some('S') => FieldType::Short,
+        Some('Z') => FieldType::Bool,
+        Some('[') => FieldType::Array(Box::new(parse_field_descriptor(chars)?)),
+        _ => return Err(ParseError::InvalidDescriptor),
+    };
+    Ok(field_type)
 }
 
 fn parse_attribute<'a>(reader: &mut Reader<'a>) -> Result<(ConstantIdx, &'a [u8])> {
