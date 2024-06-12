@@ -9,7 +9,7 @@ use super::{parse_instruction, ConstantIdx};
 #[derive(Clone)]
 pub struct Bytecode<'a> {
     slice: &'a [u8],
-    pc: usize,
+    pc: u32,
 }
 
 impl<'a> Bytecode<'a> {
@@ -17,23 +17,27 @@ impl<'a> Bytecode<'a> {
         Self { slice, pc: 0 }
     }
 
-    pub fn set_pc(&mut self, pc: usize) {
+    pub fn pc(&self) -> u32 {
+        self.pc
+    }
+
+    pub fn set_pc(&mut self, pc: u32) {
         self.pc = pc;
     }
 }
 
 impl<'a> Iterator for Bytecode<'a> {
-    type Item = (usize, Instruction<'a>);
+    type Item = (u32, Instruction<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pc < self.slice.len() {
-            let pc = self.pc;
+        if self.pc < self.slice.len() as u32 {
+            let pc = self.pc as usize;
 
             let mut reader = Reader::new(&self.slice[pc..]);
             let instruction = parse_instruction(&mut reader, pc).unwrap();
-            self.pc = self.slice.len() - reader.remaining();
+            self.pc = (self.slice.len() - reader.remaining()) as u32;
 
-            Some((pc, instruction))
+            Some((pc as u32, instruction))
         } else {
             None
         }
@@ -288,7 +292,7 @@ impl<'a> LookupSwitch<'a> {
         })
     }
 
-    fn fmt(&self, f: &mut std::fmt::Formatter, pc: usize) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter, pc: u32) -> std::fmt::Result {
         write!(f, "lookupswitch: ")?;
 
         let mut debug_list = f.debug_list();
@@ -342,7 +346,7 @@ impl<'a> TableSwitch<'a> {
         std::iter::from_fn(move || reader.read_u32().map(|value| value as i32).ok())
     }
 
-    fn fmt(&self, f: &mut std::fmt::Formatter, pc: usize) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter, pc: u32) -> std::fmt::Result {
         write!(f, "tableswitch: ")?;
 
         let mut debug_list = f.debug_list();
