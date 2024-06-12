@@ -1,5 +1,7 @@
+use std::ops::{Index, IndexMut, RangeBounds};
+
 use super::iter::JavaChars;
-use super::{validate, EncodingError, JavaString};
+use super::{check_surrogate_index, validate, EncodingError, JavaString};
 
 /// A Modified UTF-8 string slice. This is the encoding that Java uses for
 /// strings. This string does support unpaired surrogates, which are
@@ -102,11 +104,112 @@ impl JavaStr {
         self.bytes.is_empty()
     }
 
+    /// Checks that the `index`-th byte is the first by in a Modified UTF-8 code
+    /// point sequence or is at the end of the string. This will report the
+    /// second code unit of a valid surrogate pair as a char boundary.
+    ///
+    /// The start and end of the string (when `index == self.len()`) are
+    /// considered to be boundaries.
+    ///
+    /// Returns `false` if `index` is greater than `self.len()`.
+    #[inline]
+    #[must_use]
+    pub fn is_char_boundary(&self, index: usize) -> bool {
+        // 0 is always ok. This is a fast path so that it can optimize out
+        // checks easily and skip reading string data for that case.
+        if index == 0 {
+            return true;
+        }
+
+        match self.bytes.get(index) {
+            None => index == self.len(),
+
+            // Check whether inside valid surrogate pair
+            Some(&b) => {
+                if b < 128 || b & 0xE0 == 0xC0 {
+                    true
+                } else if b & 0xF0 == 0xE0 {
+                    // Check whether this is the second part of a surrogate pair
+                    if self.bytes.len() - index > 3 && check_surrogate_index(&self.bytes, index - 3)
+                    {
+                        false
+                    } else {
+                        true
+                    }
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
     /// Converts a string slice into a byte slice.
     #[inline]
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    /// Returns a subslice of `JavaStr`.
+    ///
+    /// This is the non-panicking alternative to index-ing the `JavaStr`.
+    /// Returns [`None`] whenever equivalent indexing operations would panic.
+    #[inline]
+    #[must_use]
+    pub fn get<I: RangeBounds<usize>>(&self, index: I) -> Option<&JavaStr> {
+        let (start, end) = self.get_checked_bounds(index)?;
+        Some(unsafe { Self::from_java_unchecked(self.bytes.get_unchecked(start..end)) })
+    }
+
+    /// Returns a mutable subslice of `JavaStr`.
+    ///
+    /// This is the non-panicking alternative to index-ing the `JavaStr`.
+    /// Returns [`None`] whenever equivalent indexing operations would panic.
+    #[inline]
+    #[must_use]
+    pub fn get_mut<I: RangeBounds<usize>>(&mut self, index: I) -> Option<&mut JavaStr> {
+        let (start, end) = self.get_checked_bounds(index)?;
+        Some(unsafe { Self::from_java_unchecked_mut(self.bytes.get_unchecked_mut(start..end)) })
+    }
+
+    /// Returns a subslice of `JavaStr`.
+    ///
+    /// This is the unchecked alternative to indexing the `JavaStr`.
+    ///
+    /// # Safety
+    ///
+    /// Callers of this function are responsible for ensuring that:
+    /// * The starting index does not exceed the ending index;
+    /// * The indices are within the bounds of the original slice;
+    /// * The indices fall on Modified UTF-8 code unit boundaries.
+    ///
+    /// Failing that, the returned string slice may reference invalid memory or
+    /// violate invariants communicated by the `JavaStr` type.
+    #[inline]
+    #[must_use]
+    pub unsafe fn get_unchecked<I: RangeBounds<usize>>(&self, index: I) -> &JavaStr {
+        let (start, end) = self.get_bounds(index);
+        unsafe { Self::from_java_unchecked(self.bytes.get_unchecked(start..end)) }
+    }
+
+    /// Returns a subslice of `JavaStr`.
+    ///
+    /// This is the unchecked alternative to indexing the `JavaStr`.
+    ///
+    /// # Safety
+    ///
+    /// Callers of this function are responsible for ensuring that:
+    /// * The starting index does not exceed the ending index;
+    /// * The indices are within the bounds of the original slice;
+    /// * The indices fall on Modified UTF-8 code unit boundaries.
+    ///
+    /// Failing that, the returned string slice may reference invalid memory or
+    /// violate invariants communicated by the `JavaStr` type.
+    #[inline]
+    #[must_use]
+    pub unsafe fn get_unchecked_mut<I: RangeBounds<usize>>(&mut self, index: I) -> &mut JavaStr {
+        let (start, end) = self.get_bounds(index);
+        unsafe { Self::from_java_unchecked_mut(self.bytes.get_unchecked_mut(start..end)) }
     }
 
     /// Returns an iterator over the code points of a string slice.
@@ -121,6 +224,151 @@ impl JavaStr {
     #[inline]
     pub const fn chars(&self) -> JavaChars {
         JavaChars { slice: &self.bytes }
+    }
+
+    /// Calculate the bounds for a given range.
+    #[inline]
+    #[must_use]
+    fn get_bounds<I: RangeBounds<usize>>(&self, index: I) -> (usize, usize) {
+        let start = match index.start_bound() {
+            core::ops::Bound::Excluded(&x) => x + 1,
+            core::ops::Bound::Included(&x) => x,
+            core::ops::Bound::Unbounded => 0,
+        };
+        let end = match index.end_bound() {
+            core::ops::Bound::Excluded(&x) => x,
+            core::ops::Bound::Included(&x) => x + 1,
+            core::ops::Bound::Unbounded => self.len(),
+        };
+        (start, end)
+    }
+
+    /// Calculate the bounds for a given range and check that they result in
+    /// valid start and end indices.
+    #[inline]
+    #[must_use]
+    fn get_checked_bounds<I: RangeBounds<usize>>(&self, index: I) -> Option<(usize, usize)> {
+        let (start, end) = self.get_bounds(index);
+        if start > end || end > self.len() {
+            return None;
+        }
+
+        if !self.is_char_boundary(start) || !self.is_char_boundary(end) {
+            return None;
+        }
+
+        Some((start, end))
+    }
+
+    /// Panics if the range is invalid.
+    ///
+    /// # Panics
+    ///
+    /// Panics when:
+    /// * `start` or `end` are out of bounds
+    /// * `start` > `end`
+    /// * `start` or `end` are not on character boundaries
+    #[inline]
+    #[track_caller]
+    fn check_index_internal(&self, start: usize, end: usize) {
+        // Slice
+        assert!(
+            start <= end,
+            "slice index starts at {start} but ends at {end}"
+        );
+        assert!(
+            start <= self.len(),
+            "start index {start} out of range for str of length {}",
+            self.len(),
+        );
+        assert!(
+            end <= self.len(),
+            "end index {end} out of range for str of length {}",
+            self.len(),
+        );
+
+        // str-specific
+        assert!(
+            self.is_char_boundary(start),
+            "byte index {start} is not a char boundary"
+        );
+        assert!(
+            self.is_char_boundary(end),
+            "byte index {end} is not a char boundary"
+        );
+    }
+
+    /// Returns an immutable `JavaStr`. Panics if the range is invalid.
+    ///
+    /// # Panics
+    ///
+    /// Panics when:
+    /// * `start` or `end` are out of bounds
+    /// * `start` > `end`
+    /// * `start` or `end` are not on character boundaries
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    fn index_internal(&self, start: usize, end: usize) -> &JavaStr {
+        self.check_index_internal(start, end);
+        unsafe { self.get_unchecked(start..end) }
+    }
+
+    /// Returns a mutable `JavaStr`. Panics if the range is invalid.
+    ///
+    /// # Panics
+    ///
+    /// Panics when:
+    /// * `start` or `end` are out of bounds
+    /// * `start` > `end`
+    /// * `start` or `end` are not on character boundaries
+    #[inline]
+    #[must_use]
+    #[track_caller]
+    fn index_internal_mut(&mut self, start: usize, end: usize) -> &mut JavaStr {
+        self.check_index_internal(start, end);
+        unsafe { self.get_unchecked_mut(start..end) }
+    }
+}
+
+impl<T: RangeBounds<usize>> Index<T> for JavaStr {
+    type Output = JavaStr;
+
+    fn index(&self, index: T) -> &Self::Output {
+        let (start, end) = self.get_bounds(index);
+        self.index_internal(start, end)
+    }
+}
+
+impl<T: RangeBounds<usize>> Index<T> for &JavaStr {
+    type Output = JavaStr;
+
+    fn index(&self, index: T) -> &Self::Output {
+        let (start, end) = self.get_bounds(index);
+        self.index_internal(start, end)
+    }
+}
+
+impl<T: RangeBounds<usize>> Index<T> for &mut JavaStr {
+    type Output = JavaStr;
+
+    fn index(&self, index: T) -> &Self::Output {
+        let (start, end) = self.get_bounds(index);
+        self.index_internal(start, end)
+    }
+}
+
+impl<T: RangeBounds<usize>> IndexMut<T> for JavaStr {
+    fn index_mut(&mut self, index: T) -> &mut Self::Output {
+        let (start, end) = self.get_bounds(index);
+        self.index_internal_mut(start, end)
+    }
+}
+
+impl<T: RangeBounds<usize>> IndexMut<T> for &mut JavaStr {
+    fn index_mut(&mut self, index: T) -> &mut Self::Output {
+        let (start, end) = self.get_bounds(index);
+        self.index_internal_mut(start, end)
     }
 }
 

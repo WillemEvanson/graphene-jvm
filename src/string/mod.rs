@@ -317,6 +317,27 @@ const fn get_surrogate_index(v: &[u8], index: usize) -> Option<u32> {
     None
 }
 
+#[inline]
+#[must_use]
+#[allow(clippy::identity_op)]
+const fn check_surrogate_index(v: &[u8], index: usize) -> bool {
+    if let Some(x) = index.checked_add(5) {
+        if index + 5 != x {
+            unsafe { std::hint::unreachable_unchecked() }
+        }
+
+        if x < v.len() {
+            return ((v[index + 0] & 0xFF) == 0xED)
+                & ((v[index + 1] & 0xF0) == 0xA0)
+                & ((v[index + 2] & 0xC0) == 0x80)
+                & ((v[index + 3] & 0xFF) == 0xED)
+                & ((v[index + 4] & 0xF0) == 0xB0)
+                & ((v[index + 5] & 0xC0) == 0x80);
+        }
+    }
+    false
+}
+
 /// Compute the length of a character when encoded in the CESU-8 format.
 #[inline]
 #[must_use]
