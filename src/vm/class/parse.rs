@@ -285,10 +285,7 @@ fn parse_method_descriptor(chars: &mut JavaChars) -> Result<MethodDescriptor> {
         Some(parse_field_descriptor(chars)?)
     };
 
-    Ok(MethodDescriptor {
-        parameters,
-        ret,
-    })
+    Ok(MethodDescriptor { parameters, ret })
 }
 
 fn parse_field_descriptor(chars: &mut JavaChars) -> Result<FieldType> {
@@ -347,7 +344,7 @@ pub(super) fn parse_instruction<'a>(
         0x0E => Instruction::dconst(0.0),
         0x0F => Instruction::dconst(1.0),
         0x10 => Instruction::bipush(reader.read_u8()? as i8),
-        0x11 => Instruction::sipush(reader.read_u16()? as i16),
+        0x11 => Instruction::sipush(reader.read_i16()?),
         0x12 => Instruction::ldc(ConstantIdx::try_from(reader.read_u8()? as u16)?),
         0x13 => Instruction::ldc(ConstantIdx::try_from(reader.read_u16()? as u16)?),
         0x14 => Instruction::ldc(ConstantIdx::try_from(reader.read_u16()? as u16)?),
@@ -495,25 +492,25 @@ pub(super) fn parse_instruction<'a>(
         0x96 => Instruction::fcmp(true),
         0x97 => Instruction::dcmp(false),
         0x98 => Instruction::dcmp(true),
-        0x99 => Instruction::if_eq(reader.read_u16()? as i16),
-        0x9A => Instruction::if_ne(reader.read_u16()? as i16),
-        0x9B => Instruction::if_lt(reader.read_u16()? as i16),
-        0x9C => Instruction::if_ge(reader.read_u16()? as i16),
-        0x9D => Instruction::if_gt(reader.read_u16()? as i16),
-        0x9E => Instruction::if_le(reader.read_u16()? as i16),
+        0x99 => Instruction::if_eq(reader.read_i16()?),
+        0x9A => Instruction::if_ne(reader.read_i16()?),
+        0x9B => Instruction::if_lt(reader.read_i16()?),
+        0x9C => Instruction::if_ge(reader.read_i16()?),
+        0x9D => Instruction::if_gt(reader.read_i16()?),
+        0x9E => Instruction::if_le(reader.read_i16()?),
 
-        0x9F => Instruction::if_icmp_eq(reader.read_u16()? as i16),
-        0xA0 => Instruction::if_icmp_ne(reader.read_u16()? as i16),
-        0xA1 => Instruction::if_icmp_lt(reader.read_u16()? as i16),
-        0xA2 => Instruction::if_icmp_ge(reader.read_u16()? as i16),
-        0xA3 => Instruction::if_icmp_gt(reader.read_u16()? as i16),
-        0xA4 => Instruction::if_icmp_le(reader.read_u16()? as i16),
-        0xA5 => Instruction::if_acmp_eq(reader.read_u16()? as i16),
-        0xA6 => Instruction::if_acmp_ne(reader.read_u16()? as i16),
+        0x9F => Instruction::if_icmp_eq(reader.read_i16()?),
+        0xA0 => Instruction::if_icmp_ne(reader.read_i16()?),
+        0xA1 => Instruction::if_icmp_lt(reader.read_i16()?),
+        0xA2 => Instruction::if_icmp_ge(reader.read_i16()?),
+        0xA3 => Instruction::if_icmp_gt(reader.read_i16()?),
+        0xA4 => Instruction::if_icmp_le(reader.read_i16()?),
+        0xA5 => Instruction::if_acmp_eq(reader.read_i16()?),
+        0xA6 => Instruction::if_acmp_ne(reader.read_i16()?),
 
         // Control
-        0xA7 => Instruction::goto(reader.read_u16()? as i32),
-        0xA8 => Instruction::jsr(reader.read_u16()? as i32),
+        0xA7 => Instruction::goto(reader.read_i16()? as i32),
+        0xA8 => Instruction::jsr(reader.read_i16()? as i32),
         0xA9 => Instruction::ret(reader.read_u8()? as u16),
         0xAA => {
             reader.skip(4 - (current_offset + 1) % 4)?;
@@ -594,7 +591,7 @@ pub(super) fn parse_instruction<'a>(
 
                 // Other
                 0xA9 => Instruction::ret(index),
-                0x84 => Instruction::iinc(index, reader.read_u16()? as i16),
+                0x84 => Instruction::iinc(index, reader.read_i16()?),
                 opcode => panic!("invalid opcode: {opcode:04X}"),
             }
         }
@@ -602,8 +599,8 @@ pub(super) fn parse_instruction<'a>(
             ConstantIdx::try_from(reader.read_u16()?)?,
             reader.read_u8()?,
         ),
-        0xC6 => Instruction::ifnull(reader.read_u16()? as i16),
-        0xC7 => Instruction::ifnonnull(reader.read_u16()? as i16),
+        0xC6 => Instruction::ifnull(reader.read_i16()?),
+        0xC7 => Instruction::ifnonnull(reader.read_i16()?),
         0xC8 => Instruction::goto(reader.read_u32()? as i32),
         0xC9 => Instruction::jsr(reader.read_u32()? as i32),
 

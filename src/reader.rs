@@ -62,11 +62,19 @@ impl<'a> Reader<'a> {
         Ok(u8::from_be_bytes(self.read_bytes()?))
     }
 
+    pub fn read_i16(&mut self) -> Result<i16> {
+        Ok(i16::from_be_bytes(self.read_bytes()?))
+    }
+
     pub fn read_u16(&mut self) -> Result<u16> {
         Ok(u16::from_be_bytes(self.read_bytes()?))
     }
 
     pub fn read_u32(&mut self) -> Result<u32> {
         Ok(u32::from_be_bytes(self.read_bytes()?))
+    }
+
+    pub fn read_i32(&mut self) -> Result<i32> {
+        Ok(i32::from_be_bytes(self.read_bytes()?))
     }
 }
