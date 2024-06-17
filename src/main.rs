@@ -1,25 +1,39 @@
-use graphene_jvm::vm::class::parse;
+use std::path::PathBuf;
+
+use graphene_jvm::string::from_utf8;
+use graphene_jvm::vm::{execute, ClassManager};
 
 fn main() {
-    let Some(rt_jar_path) = std::env::args().nth(1) else {
-        eprintln!("usage: graphene_jvm [rt_jar_path]");
+    let (class_manager, main_class) = if std::env::args().len() < 3 {
+        eprintln!("usage: graphene_jvm [class files] [main class]");
         return;
-    };
-
-    visit_dirs(std::path::Path::new(&rt_jar_path)).unwrap();
-}
-
-pub fn visit_dirs(dir: &std::path::Path) -> std::io::Result<()> {
-    if dir.is_dir() {
-        for entry in std::fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            visit_dirs(&path)?
-        }
     } else {
-        println!("{}", dir.display());
-        let file_contents = std::fs::read(&dir).unwrap();
-        let _class = parse(&file_contents).unwrap();
-    }
-    Ok(())
+        let file_count = std::env::args_os().len();
+        let mut stack = std::env::args_os()
+            .skip(1)
+            .take(file_count - 2)
+            .map(PathBuf::from)
+            .collect::<Vec<_>>();
+        let main_class = std::env::args().last().unwrap();
+
+        let mut class_manager = ClassManager::new();
+        while let Some(entry) = stack.pop() {
+            if entry.is_dir() {
+                for entry in std::fs::read_dir(entry).unwrap() {
+                    let entry = entry.unwrap();
+                    stack.push(entry.path());
+                }
+            } else if let Some(extension) = entry.extension() {
+                if extension == "class" {
+                    let file_contents = std::fs::read(&entry).unwrap();
+                    class_manager.load(&file_contents).unwrap();
+                }
+            }
+        }
+        (class_manager, main_class)
+    };
+    let main_class = from_utf8(main_class.as_str());
+    println!("{}", main_class);
+
+    execute(&class_manager, &main_class);
 }
